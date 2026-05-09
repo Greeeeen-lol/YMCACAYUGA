@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "Record": {
+      "title": "Daily Record",
+      "description": "A daily behavioral and snack record for a child.",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "The date of the record (YYYY-MM-DD)."
+        },
+        "name": {
+          "type": "string",
+          "description": "The child's full name."
+        },
+        "nameLower": {
+          "type": "string",
+          "description": "The child's full name in lowercase for search."
+        },
+        "preference": {
+          "type": "string",
+          "enum": ["snack", "drink", "both", "none"],
+          "description": "The child's snack preference for the day."
+        },
+        "strikes": {
+          "type": "integer",
+          "description": "The number of discipline strikes for the day."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes about the child for the day."
+        }
+      },
+      "required": ["date", "name", "nameLower", "preference", "strikes"]
+    },
+    "Kid": {
+      "title": "Kid Roster Entry",
+      "description": "A child in the program, including their schedule and group.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The child's full name."
+        },
+        "nameLower": {
+          "type": "string",
+          "description": "The child's full name in lowercase for search."
+        },
+        "group": {
+          "type": "string",
+          "enum": ["UPK AM", "UPK PM", "K-5AM", "K-5PM"],
+          "description": "The group the child belongs to."
+        },
+        "schedule": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+          },
+          "description": "The days of the week the child attends."
+        }
+      },
+      "required": ["name", "nameLower", "group", "schedule"]
+    }
+  },
+  "firestore": {
+    "records": {
+      "schema": { "$ref": "#/entities/Record" },
+      "description": "A collection containing daily behavioral and snack records."
+    },
+    "kids": {
+      "schema": { "$ref": "#/entities/Kid" },
+      "description": "The master roster of kids in the program."
+    }
+  }
+}
+

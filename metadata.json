@@ -1,0 +1,6 @@
+{
+  "name": "YMCA Tracker",
+  "description": "A daily tracking portal for YMCA staff to record behavior, snacks, and notes for kids, with a dedicated view for parents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

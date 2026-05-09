@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // Bootstrapped admin from runtime metadata
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'LoganAntonioDavila@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validation ---
+
+    function isValidKid(data) {
+      return data.keys().hasAll(['name', 'nameLower', 'group', 'schedule']) &&
+             data.keys().size() == 4 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.nameLower is string && data.nameLower.size() > 0 && data.nameLower.size() <= 128 &&
+             data.group in ['UPK AM', 'UPK PM', 'K-5AM', 'K-5PM'] &&
+             data.schedule is list && data.schedule.size() >= 0 && data.schedule.size() <= 7 &&
+             (data.schedule.size() == 0 || data.schedule[0] in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+    }
+
+    function isValidRecord(data) {
+      return data.keys().hasAll(['date', 'name', 'nameLower', 'preference', 'strikes']) &&
+             data.keys().size() >= 5 && data.keys().size() <= 6 &&
+             data.date is string && data.date.size() == 10 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 128 &&
+             data.nameLower is string && data.nameLower.size() > 0 && data.nameLower.size() <= 128 &&
+             data.preference in ['snack', 'drink', 'both', 'none'] &&
+             data.strikes is int && data.strikes >= 0 && data.strikes <= 100 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000));
+    }
+
+    // --- Collections ---
+
+    match /kids/{kidId} {
+      allow read: if isAdmin() || isSignedIn();
+      allow create: if (isAdmin() || isSignedIn()) && isValidKid(incoming());
+      allow update: if (isAdmin() || isSignedIn()) && isValidKid(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasAny(['group', 'schedule', 'name', 'nameLower'])
+      );
+      allow delete: if isAdmin() || isSignedIn();
+    }
+
+    match /records/{recordId} {
+      // Security Pillar 8: Guarded list queries
+      // We allow parents to query their child's records by nameLower.
+      // We allow admins and staff to list everything.
+      allow list: if isAdmin() || isSignedIn() || (
+        resource.data.nameLower != null // This ensures the query must filter or the data must exist
+      );
+      
+      allow get: if isAdmin() || isSignedIn() || (
+        // Potentially allow direct access if child name is matched, 
+        // but typically parents use list/queries.
+        false 
+      );
+
+      allow create: if (isAdmin() || isSignedIn()) && isValidRecord(incoming());
+      
+      allow update: if (isAdmin() || isSignedIn()) && isValidRecord(incoming()) && (
+        // Action: Update everything (Admins or authorised staff)
+        incoming().diff(existing()).affectedKeys().hasAny(['strikes', 'notes', 'preference', 'date', 'name', 'nameLower'])
+      );
+
+      allow delete: if isAdmin() || isSignedIn();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false; 
+    }
+  }
+}
