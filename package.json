@@ -4,8 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "cp index.shell.html index.html",
     "dev": "vite --port=3000 --host=0.0.0.0",
+    "prebuild": "cp index.shell.html index.html",
     "build": "vite build",
+    "postbuild": "cp dist/index.html index.html",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
