@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect, useMemo, FormEvent } from 'react';
-import { 
+import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  onAuthStateChanged, 
-  User 
+  onAuthStateChanged,
+  signOut,
+  User
 } from 'firebase/auth';
 import { 
   collection, 
@@ -237,11 +238,19 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (auth.currentUser) {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.error('signOut failed', err);
+      }
+    }
     setUserType('none');
     setChildName('');
     setRecords([]);
     setParentHistory([]);
+    setKids([]);
   };
 
   const handleSaveKid = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -260,7 +269,7 @@ export default function App() {
     };
 
     try {
-      if (editingKid) {
+      if (editingKid && editingKid.id) {
         await updateDoc(doc(db, 'kids', editingKid.id), data);
       } else {
         await addDoc(collection(db, 'kids'), data);
@@ -268,7 +277,7 @@ export default function App() {
       setIsKidModalOpen(false);
       setEditingKid(null);
     } catch (error) {
-      handleFirestoreError(error, editingKid ? OperationType.UPDATE : OperationType.CREATE, 'kids');
+      handleFirestoreError(error, editingKid && editingKid.id ? OperationType.UPDATE : OperationType.CREATE, 'kids');
     } finally {
       setIsLoading(false);
     }
@@ -291,7 +300,8 @@ export default function App() {
     const formData = new FormData(e.currentTarget);
     const name = formData.get('name') as string;
     const preference = formData.get('preference') as Preference;
-    const strikes = parseInt(formData.get('strikes') as string);
+    const rawStrikes = parseInt(formData.get('strikes') as string, 10);
+    const strikes = Number.isNaN(rawStrikes) ? 0 : Math.max(0, rawStrikes);
     const notes = formData.get('notes') as string;
 
     const data = {
@@ -437,20 +447,24 @@ export default function App() {
                     onLogRecord={() => {
                       setEditingRecord(record || {
                         id: '', date: dateKey, name: kid.name, nameLower: kid.nameLower,
-                        preference: 'both', strikes: 0, notes: ''
+                        preference: 'none', strikes: 0, notes: ''
                       });
                       setIsRecordModalOpen(true);
                     }}
-                    onUpdateStrikes={(delta) => {
+                    onUpdateStrikes={async (delta) => {
                       if (record) {
-                        updateStrikes(record.id, record.strikes, delta);
+                        await updateStrikes(record.id, record.strikes, delta);
                       } else {
-                        // Optimistically create the record if it doesn't exist
+                        if (delta <= 0) return;
                         const data = {
                           date: dateKey, name: kid.name, nameLower: kid.nameLower,
-                          preference: 'both' as Preference, strikes: Math.max(0, delta), notes: ''
+                          preference: 'none' as Preference, strikes: delta, notes: ''
                         };
-                        addDoc(collection(db, 'records'), data).catch(error => handleFirestoreError(error, OperationType.CREATE, 'records'));
+                        try {
+                          await addDoc(collection(db, 'records'), data);
+                        } catch (error) {
+                          handleFirestoreError(error, OperationType.CREATE, 'records');
+                        }
                       }
                     }}
                     onEditKid={() => {
@@ -858,7 +872,7 @@ function RecordModal({ isOpen, onClose, record, onSave, onDelete, isLoading }: {
   onDelete: (id: string) => Promise<void>;
   isLoading: boolean;
 }) {
-  const [pref, setPref] = useState<Preference>(record?.preference || 'both');
+  const [pref, setPref] = useState<Preference>(record?.preference || 'none');
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
